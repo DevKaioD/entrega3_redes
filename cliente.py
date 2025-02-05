@@ -1,62 +1,88 @@
 import pygame
 import socket
+import sys
+from labirinto import gerar_mapa
+
+# Cores
+BRANCO = (255, 255, 255)
+PRETO = (0, 0, 0)
+VERDE = (0, 255, 0)
+VERMELHO = (255, 0, 0)
 
 # Configurações do jogo
-LARGURA, ALTURA = 600, 500
-TAMANHO_BLOCO = 80
-COR_FUNDO = (0, 0, 0)
-COR_PAREDE = (255, 255, 255)
-COR_JOGADOR = (0, 255, 0)
-COR_SAIDA = (255, 0, 0)
+LARGURA, ALTURA = 600, 600
+TAMANHO_BLOCO = 30
 
-# Inicializa o Pygame
+# Conexão com o servidor
+HOST = '127.0.0.1'
+PORT = 12345
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+# Tentativa de conexão com o servidor
+try:
+    client.connect((HOST, PORT))
+except Exception as e:
+    print(f"Erro ao conectar ao servidor: {e}")
+    sys.exit()
+
 pygame.init()
 tela = pygame.display.set_mode((LARGURA, ALTURA))
-pygame.display.set_caption("Labirinto Multiplayer")
+pygame.display.set_caption("Jogo Multiplayer")
 
-# Configurações do socket
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(("127.0.0.1", 5555))
+# Tela inicial para escolher o modo de jogo
+def tela_selecao():
+    fonte = pygame.font.Font(None, 50)
+    single_text = fonte.render("1. Singleplayer", True, BRANCO)
+    multi_text = fonte.render("2. Multiplayer", True, BRANCO)
+    
+    while True:
+        tela.fill(PRETO)
+        tela.blit(single_text, (LARGURA // 2 - single_text.get_width() // 2, ALTURA // 2 - 60))
+        tela.blit(multi_text, (LARGURA // 2 - multi_text.get_width() // 2, ALTURA // 2 + 10))
+        pygame.display.flip()
 
-# Recebe posição inicial do servidor
-posicao = client.recv(1024).decode().split(',')
-x, y = int(posicao[0]), int(posicao[1])
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_1:
+                    return "single"
+                elif evento.key == pygame.K_2:
+                    return "multi"
 
-# Estrutura do labirinto
-LABIRINTO = [
-    [1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 0, 1],
-    [1, 0, 1, 1, 1, 0, 1],
-    [1, 0, 1, 'E', 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 1],
-    [1, 1, 1, 1, 1, 1, 1]
-]
+# Modo selecionado
+modo_jogo = tela_selecao()
 
-# Mapear teclas para os comandos do servidor
-TECLAS_MOVIMENTO = {
-    pygame.K_w: "W",
-    pygame.K_s: "S",
-    pygame.K_a: "A",
-    pygame.K_d: "D"
-}
+# Geração do mapa
+if modo_jogo == "single":
+    mapa = gerar_mapa(21, 21)
+elif modo_jogo == "multi":
+    client.sendall("start_multi".encode())
+    data = client.recv(4096).decode()
+    mapa = eval(data)
 
-def desenhar_labirinto():
-    tela.fill(COR_FUNDO)
-    for linha in range(len(LABIRINTO)):
-        for coluna in range(len(LABIRINTO[linha])):
-            x_pos = coluna * TAMANHO_BLOCO
-            y_pos = linha * TAMANHO_BLOCO
+def desenhar_mapa(mapa, jogador_pos):
+    tela.fill(PRETO)
+    for y, linha in enumerate(mapa):
+        for x, bloco in enumerate(linha):
+            cor = BRANCO if bloco == " " else VERMELHO if bloco == "#" else VERDE if bloco == "F" else PRETO
+            pygame.draw.rect(tela, cor, (x * TAMANHO_BLOCO, y * TAMANHO_BLOCO, TAMANHO_BLOCO, TAMANHO_BLOCO))
 
-            if LABIRINTO[linha][coluna] == 1:
-                pygame.draw.rect(tela, COR_PAREDE, (x_pos, y_pos, TAMANHO_BLOCO, TAMANHO_BLOCO))
-            elif LABIRINTO[linha][coluna] == 'E':
-                pygame.draw.rect(tela, COR_SAIDA, (x_pos, y_pos, TAMANHO_BLOCO, TAMANHO_BLOCO))
-
-    pygame.draw.circle(tela, COR_JOGADOR, 
-                       (y * TAMANHO_BLOCO + TAMANHO_BLOCO // 2, x * TAMANHO_BLOCO + TAMANHO_BLOCO // 2),
-                       TAMANHO_BLOCO // 3)
-
+    # Desenha o jogador
+    pygame.draw.rect(tela, VERDE, (jogador_pos[0] * TAMANHO_BLOCO, jogador_pos[1] * TAMANHO_BLOCO, TAMANHO_BLOCO, TAMANHO_BLOCO))
     pygame.display.flip()
+
+# Posição inicial do jogador
+jogador_pos = [1, 1]
+
+# Movimento usando WASD
+teclas_movimento = {
+    pygame.K_w: (0, -1),
+    pygame.K_s: (0, 1),
+    pygame.K_a: (-1, 0),
+    pygame.K_d: (1, 0),
+}
 
 # Loop principal do jogo
 rodando = True
@@ -65,23 +91,24 @@ while rodando:
         if evento.type == pygame.QUIT:
             rodando = False
 
-        elif evento.type == pygame.KEYDOWN:
-            if evento.key in TECLAS_MOVIMENTO:
-                client.send(TECLAS_MOVIMENTO[evento.key].encode())
+        if evento.type == pygame.KEYDOWN:
+            if evento.key in teclas_movimento:
+                dx, dy = teclas_movimento[evento.key]
+                novo_x, novo_y = jogador_pos[0] + dx, jogador_pos[1] + dy
 
-                resposta = client.recv(1024).decode()
+                # Verifica se é possível se mover para a nova posição
+                if mapa[novo_y][novo_x] != "#":
+                    jogador_pos = [novo_x, novo_y]
 
-                if resposta == "WIN":
-                    print("🎉 Parabéns, você venceu! 🎉")
+                # Verifica vitória
+                if mapa[novo_y][novo_x] == "F":
+                    fonte = pygame.font.Font(None, 60)
+                    vitoria_text = fonte.render("🎉 Você venceu! 🎉", True, BRANCO)
+                    tela.blit(vitoria_text, (LARGURA // 2 - vitoria_text.get_width() // 2, ALTURA // 2))
+                    pygame.display.flip()
+                    pygame.time.wait(3000)
                     rodando = False
-                elif resposta == "END":
-                    print("O jogo acabou! Outro jogador venceu.")
-                    rodando = False
-                else:
-                    posicao = resposta.split(',')
-                    x, y = int(posicao[0]), int(posicao[1])
 
-    desenhar_labirinto()
+    desenhar_mapa(mapa, jogador_pos)
 
 pygame.quit()
-client.close()
