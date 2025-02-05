@@ -1,10 +1,6 @@
 import random
 
 def gerar_mapa(altura, largura):
-    """
-    Gera um labirinto aleatório com paredes (#), caminho vazio ( ),
-    ponto inicial (P) e ponto final (F).
-    """
     if altura % 2 == 0:
         altura += 1
     if largura % 2 == 0:
@@ -37,15 +33,9 @@ def gerar_mapa(altura, largura):
 
     criar_caminho(start_x, start_y)
 
-    # Garante que o ponto final esteja acessível
     if mapa[end_y - 1][end_x] == "#":
         mapa[end_y - 1][end_x] = " "
     if mapa[end_y][end_x - 1] == "#":
         mapa[end_y][end_x - 1] = " "
 
     return mapa
-
-if __name__ == "__main__":
-    mapa_teste = gerar_mapa(21, 21)
-    for linha in mapa_teste:
-        print("".join(linha))
