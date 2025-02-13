@@ -1,8 +1,9 @@
 import socket
 import threading
-import json
-from labirinto import gerar_mapa
 import time
+import csv
+import os
+from labirinto import gerar_mapa
 
 # Configurações do servidor
 HOST = '127.0.0.1'
@@ -12,25 +13,33 @@ PORT = 12345
 jogadores = []
 historico = []
 
-# Geração do labirinto
-ALTURA, LARGURA = 21, 21  # Dimensões do labirinto
+# Carrega o histórico existente ou cria um novo arquivo
+if os.path.exists("historico.csv"):
+    with open("historico.csv", "r") as arquivo:
+        leitor = csv.reader(arquivo)
+        historico = list(leitor)
+else:
+    historico = [["Jogador", "Resultado", "Tempo", "Modo"]]
 
 def salvar_historico(nome_jogador, resultado, tempo, modo):
-    historico.append({
-        "jogador": nome_jogador,
-        "resultado": resultado,
-        "tempo": tempo,
-        "modo": modo
-    })
-    with open("historico.json", "w") as arquivo:
-        json.dump(historico, arquivo)
+    historico.append([nome_jogador, resultado, tempo, modo])
+    with open("historico.csv", "w", newline="") as arquivo:
+        escritor = csv.writer(arquivo)
+        escritor.writerows(historico)
 
 def gerenciar_cliente(conn, endereco):
     print(f"Jogador conectado: {endereco}")
     jogadores.append(conn)
 
     try:
-        mapa = gerar_mapa(ALTURA, LARGURA)
+        # Aguarda dois jogadores para iniciar o multiplayer
+        if len(jogadores) < 2:
+            conn.sendall("Aguardando outro jogador...".encode('utf-8'))
+            while len(jogadores) < 2:
+                time.sleep(1)
+        
+        # Gera o mapa para o multiplayer (Dificuldade 2)
+        mapa = gerar_mapa(21, 21, "dificuldade2")
         conn.sendall(json.dumps(mapa).encode('utf-8'))  # Envia o mapa ao cliente
         start_time = time.time()
         while True:
@@ -39,10 +48,11 @@ def gerenciar_cliente(conn, endereco):
                 break
             print(f"Mensagem do jogador {endereco}: {mensagem}")
             
-            if mensagem == "FIM":
+            if mensagem.startswith("FIM"):
                 end_time = time.time()
                 tempo_total = end_time - start_time
-                salvar_historico(f"Jogador {endereco}", "Vitória", tempo_total, "multi")
+                nome_jogador = mensagem.split(":")[1] if ":" in mensagem else f"Jogador {endereco}"
+                salvar_historico(nome_jogador, "Vitória", tempo_total, "multi")
                 break
     except Exception as e:
         print(f"Erro com o jogador {endereco}: {e}")
