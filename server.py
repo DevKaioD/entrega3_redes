@@ -3,6 +3,7 @@ import threading
 import time
 import csv
 import os
+import json
 from labirinto import gerar_mapa
 
 # Configurações do servidor

@@ -14,7 +14,7 @@ VERMELHO = (255, 0, 0)
 AZUL = (0, 0, 255)
 
 # Configurações do jogo
-LARGURA, ALTURA = 600, 600
+LARGURA, ALTURA = 625, 625
 TAMANHO_BLOCO = 30
 
 # Conexão com o servidor
@@ -72,12 +72,14 @@ def tela_selecao():
     single_text = fonte.render("1. Singleplayer", True, BRANCO)
     multi_text = fonte.render("2. Multiplayer", True, BRANCO)
     historico_text = fonte.render("3. Histórico", True, BRANCO)
+    sair_text = fonte.render("4. Sair", True, BRANCO)
     
     while True:
         tela.fill(PRETO)
-        tela.blit(single_text, (LARGURA // 2 - single_text.get_width() // 2, ALTURA // 2 - 90))
-        tela.blit(multi_text, (LARGURA // 2 - multi_text.get_width() // 2, ALTURA // 2 - 30))
-        tela.blit(historico_text, (LARGURA // 2 - historico_text.get_width() // 2, ALTURA // 2 + 30))
+        tela.blit(single_text, (LARGURA // 2 - single_text.get_width() // 2, ALTURA // 2 - 120))
+        tela.blit(multi_text, (LARGURA // 2 - multi_text.get_width() // 2, ALTURA // 2 - 60))
+        tela.blit(historico_text, (LARGURA // 2 - historico_text.get_width() // 2, ALTURA // 2))
+        tela.blit(sair_text, (LARGURA // 2 - sair_text.get_width() // 2, ALTURA // 2 + 60))
         pygame.display.flip()
 
         for evento in pygame.event.get():
@@ -91,6 +93,9 @@ def tela_selecao():
                     return "multi"
                 elif evento.key == pygame.K_3:
                     return "historico"
+                elif evento.key == pygame.K_4:
+                    pygame.quit()
+                    sys.exit()
 
 # Tela para escolher a dificuldade
 def tela_dificuldade():
@@ -162,7 +167,7 @@ def exibir_historico_tela():
             historico = list(leitor)
             if len(historico) > 1:  # Verifica se há dados além do cabeçalho
                 # Filtros
-                fonte_filtro = pygame.font.Font(None, 25)
+                fonte_filtro = pygame.font.Font(None, 24)
                 filtro_single_text = fonte_filtro.render("1. Singleplayer", True, BRANCO)
                 filtro_multi_text = fonte_filtro.render("2. Multiplayer", True, BRANCO)
                 filtro_todos_text = fonte_filtro.render("3. Todos", True, BRANCO)
@@ -185,13 +190,15 @@ def exibir_historico_tela():
                                 filtro_escolhido = "multi"
                             elif evento.key == pygame.K_3:
                                 filtro_escolhido = "todos"
+                            elif evento.key == pygame.K_ESCAPE:
+                                return
 
                 # Aplica o filtro
                 if filtro_escolhido != "todos":
                     historico = [historico[0]] + [linha for linha in historico[1:] if linha[3] == filtro_escolhido]
 
                 # Ordenação
-                fonte_ordenacao = pygame.font.Font(None, 25)
+                fonte_ordenacao = pygame.font.Font(None, 24)
                 ordenar_nome_text = fonte_ordenacao.render("4. Ordenar por Nome", True, BRANCO)
                 ordenar_tempo_text = fonte_ordenacao.render("5. Ordenar por Tempo", True, BRANCO)
                 ordenar_modo_text = fonte_ordenacao.render("6. Ordenar por Modo", True, BRANCO)
@@ -214,6 +221,8 @@ def exibir_historico_tela():
                                 ordenacao_escolhida = "tempo"
                             elif evento.key == pygame.K_6:
                                 ordenacao_escolhida = "modo"
+                            elif evento.key == pygame.K_ESCAPE:
+                                return
 
                 # Aplica a ordenação
                 if ordenacao_escolhida == "nome":
@@ -224,7 +233,7 @@ def exibir_historico_tela():
                     historico[1:] = sorted(historico[1:], key=lambda x: x[3])  # Ordena por modo
 
                 # Pesquisa
-                fonte_pesquisa = pygame.font.Font(None, 25)
+                fonte_pesquisa = pygame.font.Font(None, 24)
                 pesquisa_text = fonte_pesquisa.render("Digite o nome do jogador e pressione ENTER:", True, BRANCO)
                 tela.blit(pesquisa_text, (50, 90))
                 pygame.display.flip()
@@ -256,6 +265,7 @@ def exibir_historico_tela():
                     historico = [historico[0]] + [linha for linha in historico[1:] if nome_pesquisa.lower() in linha[0].lower()]
 
                 # Exibe o histórico com numeração e formatação
+                fonte = pygame.font.Font(None, 23)
                 y = 150  # Posição vertical inicial para o texto
                 for i, linha in enumerate(historico[1:], start=1):  # Ignora o cabeçalho
                     texto = f"{i}. Jogador: {linha[0]}, Resultado: {linha[1]}, Tempo: {float(linha[2]):.2f}s, Modo: {linha[3]}"
