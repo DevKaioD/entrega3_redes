@@ -17,17 +17,49 @@ AZUL = (0, 0, 255)
 LARGURA, ALTURA = 625, 625
 TAMANHO_BLOCO = 30
 
-# Conexão com o servidor
-HOST = '127.0.0.1'
-PORT = 12345
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# Configurações do cliente
+BROADCAST_PORT = 5001  # Porta de descoberta UDP
+TIMEOUT = 5  # Tempo de espera para a resposta do servidor (em segundos)
 
-# Tentativa de conexão com o servidor
-try:
-    client.connect((HOST, PORT))
-except Exception as e:
-    print(f"Erro ao conectar ao servidor: {e}")
-    sys.exit()
+def discover_server():
+    """Descobre o servidor na rede local."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        udp_socket.settimeout(TIMEOUT)
+
+        print("Procurando servidor na rede...")
+
+        # Envia uma mensagem de broadcast
+        udp_socket.sendto("DISCOVERY_REQUEST".encode(), ('<broadcast>', BROADCAST_PORT))
+
+        try:
+            # Aguarda a resposta do servidor
+            data, addr = udp_socket.recvfrom(1024)
+            if data.decode() == "DISCOVERY_RESPONSE":
+                print(f"Servidor encontrado em: {addr[0]}")
+                return addr[0]  # Retorna o IP do servidor
+        except socket.timeout:
+            print("Nenhum servidor encontrado.")
+            return None
+
+def conectar_ao_servidor():
+    """Conecta ao servidor."""
+    HOST = discover_server()  # Descobre o servidor
+    PORT = 12345
+
+    if not HOST:
+        print("Não foi possível encontrar o servidor. Verifique se o servidor está rodando.")
+        return None
+
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    try:
+        client.connect((HOST, PORT))
+        print(f"Conectado ao servidor {HOST}:{PORT}")
+        return client
+    except Exception as e:
+        print(f"Erro ao conectar ao servidor: {e}")
+        return None
 
 pygame.init()
 tela = pygame.display.set_mode((LARGURA, ALTURA))
@@ -73,7 +105,7 @@ def tela_selecao():
     multi_text = fonte.render("2. Multiplayer", True, BRANCO)
     historico_text = fonte.render("3. Histórico", True, BRANCO)
     sair_text = fonte.render("4. Sair", True, BRANCO)
-    
+
     while True:
         tela.fill(PRETO)
         tela.blit(single_text, (LARGURA // 2 - single_text.get_width() // 2, ALTURA // 2 - 120))
@@ -190,7 +222,7 @@ def exibir_historico_tela():
                                 filtro_escolhido = "multi"
                             elif evento.key == pygame.K_3:
                                 filtro_escolhido = "todos"
-                            elif evento.key == pygame.K_ESCAPE:
+                            elif evento.key == pygame.K_ESCAPE:  # Permite voltar ao menu
                                 return
 
                 # Aplica o filtro
@@ -221,7 +253,7 @@ def exibir_historico_tela():
                                 ordenacao_escolhida = "tempo"
                             elif evento.key == pygame.K_6:
                                 ordenacao_escolhida = "modo"
-                            elif evento.key == pygame.K_ESCAPE:
+                            elif evento.key == pygame.K_ESCAPE:  # Permite voltar ao menu
                                 return
 
                 # Aplica a ordenação
@@ -265,7 +297,7 @@ def exibir_historico_tela():
                     historico = [historico[0]] + [linha for linha in historico[1:] if nome_pesquisa.lower() in linha[0].lower()]
 
                 # Exibe o histórico com numeração e formatação
-                fonte = pygame.font.Font(None, 23)
+                fonte = pygame.font.Font(None, 23)  # Fonte menor para o texto do histórico
                 y = 150  # Posição vertical inicial para o texto
                 for i, linha in enumerate(historico[1:], start=1):  # Ignora o cabeçalho
                     texto = f"{i}. Jogador: {linha[0]}, Resultado: {linha[1]}, Tempo: {float(linha[2]):.2f}s, Modo: {linha[3]}"
@@ -318,6 +350,39 @@ def exibir_historico_tela():
                     y += linha_altura
                 tela.blit(voltar_texto, (LARGURA // 2 - voltar_texto.get_width() // 2, ALTURA - 50))
                 pygame.display.flip()
+
+# Função para capturar o nome do jogador na tela
+def tela_nome_jogador():
+    """Exibe uma tela para o jogador inserir seu nome."""
+    fonte = pygame.font.Font(None, 50)
+    texto_instrucao = fonte.render("Digite seu nome e pressione ENTER:", True, BRANCO)
+    nome_jogador = ""
+    input_rect = pygame.Rect(LARGURA // 2 - 100, ALTURA // 2, 200, 40)  # Caixa de texto
+    ativo = True
+
+    while ativo:
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_RETURN:  # Enter para confirmar
+                    return nome_jogador
+                elif evento.key == pygame.K_BACKSPACE:  # Backspace para apagar
+                    nome_jogador = nome_jogador[:-1]
+                else:
+                    nome_jogador += evento.unicode  # Adiciona o caractere digitado
+
+        # Desenha a tela
+        tela.fill(PRETO)
+        tela.blit(texto_instrucao, (LARGURA // 2 - texto_instrucao.get_width() // 2, ALTURA // 2 - 60))
+        
+        # Desenha a caixa de texto
+        pygame.draw.rect(tela, BRANCO, input_rect, 2)
+        texto_nome = fonte.render(nome_jogador, True, BRANCO)
+        tela.blit(texto_nome, (input_rect.x + 5, input_rect.y + 5))
+
+        pygame.display.flip()
 
 # Função principal do jogo
 def main():
@@ -385,61 +450,86 @@ def main():
                 desenhar_mapa(mapa, jogador_pos)
 
         elif modo_jogo == "multi":
+            # Solicita o nome do jogador na tela
+            nome_jogador = tela_nome_jogador()
+            client = conectar_ao_servidor()
+            if not client:
+                return
+
             try:
-                client.sendall("start_multi".encode())
+                # Envia o nome do jogador para o servidor
+                client.sendall(nome_jogador.encode('utf-8'))
+
+                # Recebe o mapa gerado pelo servidor
                 data = client.recv(4096).decode()
                 mapa = json.loads(data)
+
+                # Define a posição inicial do jogador
+                jogador_pos = [1, 1]  # Canto superior esquerdo
+                outro_jogador_pos = [19, 19]  # Canto inferior direito
+
+                start_time = time.time()
+                rodando = True
+                while rodando:
+                    for evento in pygame.event.get():
+                        if evento.type == pygame.QUIT:
+                            pygame.quit()
+                            sys.exit()
+
+                        if evento.type == pygame.KEYDOWN:
+                            if evento.key in teclas_movimento:
+                                dx, dy = teclas_movimento[evento.key]
+                                novo_x, novo_y = jogador_pos[0] + dx, jogador_pos[1] + dy
+
+                                # Verifica se é possível se mover para a nova posição
+                                if mapa[novo_y][novo_x] != "#":
+                                    jogador_pos = [novo_x, novo_y]
+
+                                # Envia a nova posição para o servidor
+                                client.sendall(json.dumps(jogador_pos).encode('utf-8'))
+
+                    # Recebe as posições atualizadas dos jogadores
+                    try:
+                        data = client.recv(1024).decode()
+                        if data:
+                            posicoes = json.loads(data)
+                            jogador_pos = posicoes[0]  # Posição do jogador atual
+                            outro_jogador_pos = posicoes[1]  # Posição do outro jogador
+                    except:
+                        pass
+
+                    # Verifica vitória
+                    if mapa[jogador_pos[1]][jogador_pos[0]] == "F":
+                        end_time = time.time()
+                        tempo_total = end_time - start_time
+                        print(f"Você venceu! Tempo: {tempo_total:.2f} segundos")
+                        fonte = pygame.font.Font(None, 60)
+                        vitoria_text = fonte.render("🎉 Você venceu! 🎉", True, BRANCO)
+                        tela.blit(vitoria_text, (LARGURA // 2 - vitoria_text.get_width() // 2, ALTURA // 2))
+                        pygame.display.flip()
+                        pygame.time.wait(3000)
+                        rodando = False
+
+                        # Salva o histórico
+                        salvar_historico(nome_jogador, "Vitória", tempo_total, "multi")
+
+                        # Exibe o menu pós-vitória
+                        escolha = tela_pos_vitoria()
+                        if escolha == "menu":
+                            break
+                        elif escolha == "historico":
+                            exibir_historico_tela()
+                        elif escolha == "sair":
+                            pygame.quit()
+                            sys.exit()
+
+                    # Desenha o mapa com as posições dos jogadores
+                    desenhar_mapa(mapa, jogador_pos, outro_jogador_pos)
+
             except Exception as e:
-                print(f"Erro ao conectar ao servidor: {e}")
-                continue
-
-            # Lógica do jogo multiplayer
-            jogador_pos = [1, 1]
-            outro_jogador_pos = None
-            start_time = time.time()
-            rodando = True
-            while rodando:
-                for evento in pygame.event.get():
-                    if evento.type == pygame.QUIT:
-                        pygame.quit()
-                        sys.exit()
-
-                    if evento.type == pygame.KEYDOWN:
-                        if evento.key in teclas_movimento:
-                            dx, dy = teclas_movimento[evento.key]
-                            novo_x, novo_y = jogador_pos[0] + dx, jogador_pos[1] + dy
-
-                            # Verifica se é possível se mover para a nova posição
-                            if mapa[novo_y][novo_x] != "#":
-                                jogador_pos = [novo_x, novo_y]
-
-                            # Verifica vitória
-                            if mapa[novo_y][novo_x] == "F":
-                                end_time = time.time()
-                                tempo_total = end_time - start_time
-                                print(f"Você venceu! Tempo: {tempo_total:.2f} segundos")
-                                fonte = pygame.font.Font(None, 60)
-                                vitoria_text = fonte.render("🎉 Você venceu! 🎉", True, BRANCO)
-                                tela.blit(vitoria_text, (LARGURA // 2 - vitoria_text.get_width() // 2, ALTURA // 2))
-                                pygame.display.flip()
-                                pygame.time.wait(3000)
-                                rodando = False
-
-                                # Salva o histórico
-                                nome_jogador = "Jogador 2"  # Substitua por um nome real ou input do usuário
-                                salvar_historico(nome_jogador, "Vitória", tempo_total, "multi")
-
-                                # Exibe o menu pós-vitória
-                                escolha = tela_pos_vitoria()
-                                if escolha == "menu":
-                                    break
-                                elif escolha == "historico":
-                                    exibir_historico_tela()
-                                elif escolha == "sair":
-                                    pygame.quit()
-                                    sys.exit()
-
-                desenhar_mapa(mapa, jogador_pos, outro_jogador_pos)
+                print(f"Erro durante o jogo: {e}")
+            finally:
+                client.close()
 
         elif modo_jogo == "historico":
             exibir_historico_tela()
