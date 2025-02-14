@@ -106,7 +106,7 @@ labirinto-multiplayer/
 
 ### Autor
 
-- **Kaio** - [Seu GitHub](https://github.com/DevKaioD)
+- **Kaio** - [GitHub](https://github.com/DevKaioD)
 
 ---
 
