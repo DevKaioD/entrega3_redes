@@ -427,7 +427,7 @@ def main():
                                 tempo_total = end_time - start_time
                                 print(f"Você venceu! Tempo: {tempo_total:.2f} segundos")
                                 fonte = pygame.font.Font(None, 60)
-                                vitoria_text = fonte.render("🎉 Você venceu! 🎉", True, BRANCO)
+                                vitoria_text = fonte.render("Você venceu!", True, PRETO)
                                 tela.blit(vitoria_text, (LARGURA // 2 - vitoria_text.get_width() // 2, ALTURA // 2))
                                 pygame.display.flip()
                                 pygame.time.wait(3000)
@@ -460,13 +460,20 @@ def main():
                 # Envia o nome do jogador para o servidor
                 client.sendall(nome_jogador.encode('utf-8'))
 
+                # Aguarda a confirmação do servidor
+                confirmacao = client.recv(1024).decode()
+                if confirmacao != "NOME_RECEBIDO":
+                    print("Erro ao conectar ao servidor.")
+                    client.close()
+                    return
+
                 # Recebe o mapa gerado pelo servidor
                 data = client.recv(4096).decode()
                 mapa = json.loads(data)
 
                 # Define a posição inicial do jogador
                 jogador_pos = [1, 1]  # Canto superior esquerdo
-                outro_jogador_pos = [19, 19]  # Canto inferior direito
+                outro_jogador_pos = [19, 1]  # Canto inferior direito
 
                 start_time = time.time()
                 rodando = True
@@ -485,13 +492,16 @@ def main():
                                 if mapa[novo_y][novo_x] != "#":
                                     jogador_pos = [novo_x, novo_y]
 
-                                # Envia a nova posição para o servidor
-                                client.sendall(json.dumps(jogador_pos).encode('utf-8'))
+                                # Envia a nova posição para o servidor no formato JSON esperado
+                                dados = {"x": jogador_pos[0], "y": jogador_pos[1]}  # Cria o JSON
+                                print(f"Enviando posição: {dados}")  # Log para depuração
+                                client.sendall(json.dumps(dados).encode('utf-8'))  # Envia o JSON
 
                     # Recebe as posições atualizadas dos jogadores
                     try:
                         data = client.recv(1024).decode()
                         if data:
+                            print(f"Recebido do servidor: {data}")  # Log para depuração
                             posicoes = json.loads(data)
                             jogador_pos = posicoes[0]  # Posição do jogador atual
                             outro_jogador_pos = posicoes[1]  # Posição do outro jogador
@@ -504,7 +514,7 @@ def main():
                         tempo_total = end_time - start_time
                         print(f"Você venceu! Tempo: {tempo_total:.2f} segundos")
                         fonte = pygame.font.Font(None, 60)
-                        vitoria_text = fonte.render("🎉 Você venceu! 🎉", True, BRANCO)
+                        vitoria_text = fonte.render("Você venceu!", True, PRETO)
                         tela.blit(vitoria_text, (LARGURA // 2 - vitoria_text.get_width() // 2, ALTURA // 2))
                         pygame.display.flip()
                         pygame.time.wait(3000)
