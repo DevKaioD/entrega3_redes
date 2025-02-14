@@ -107,7 +107,3 @@ labirinto-multiplayer/
 ### Autor
 
 - **Kaio** - [GitHub](https://github.com/DevKaioD)
-
----
-
-Esse README está pronto para ser usado no seu repositório do GitHub. Se precisar de mais alguma coisa, estou à disposição! 😊
